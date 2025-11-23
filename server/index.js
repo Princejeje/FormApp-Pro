@@ -14,18 +14,19 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // --- SECURITY MIDDLEWARE ---
-
 app.use(helmet({
   contentSecurityPolicy: false, // Disable default CSP to allow inline scripts/styles if needed
 }));
 
-// CORS Configuration
-// In production, Nginx serves frontend, so origin is same domain
-app.use(cors());
+// Allow CORS
+app.use(cors({
+  origin: '*', // In production, usually restrict this
+  credentials: true
+}));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
-  max: 200, 
+  max: 300, 
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -35,12 +36,14 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 // --- API ROUTES ---
-app.use('/api/auth', authRoutes);
-app.use('/api/forms', formRoutes); 
-app.use('/api', submissionRoutes); 
+const apiRouter = express.Router();
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/forms', formRoutes); 
+apiRouter.use('/', submissionRoutes); 
+
+app.use('/api', apiRouter);
 
 // --- SERVE FRONTEND STATIC FILES (Production Fallback) ---
-// This ensures that even if Nginx misbehaves, Node serves the React app
 if (process.env.NODE_ENV === 'production') {
   // Go up one level from 'server' to find 'dist'
   const distPath = path.join(__dirname, '../dist');
@@ -60,10 +63,14 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
     status: 'error',
-    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
+    message: 'Internal Server Error'
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
