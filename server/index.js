@@ -15,12 +15,12 @@ const PORT = process.env.PORT || 3001;
 
 // --- SECURITY MIDDLEWARE ---
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable default CSP to allow inline scripts/styles if needed
+  contentSecurityPolicy: false,
 }));
 
 // Allow CORS
 app.use(cors({
-  origin: '*', // In production, usually restrict this
+  origin: '*', 
   credentials: true
 }));
 
@@ -43,14 +43,13 @@ apiRouter.use('/', submissionRoutes);
 
 app.use('/api', apiRouter);
 
-// --- SERVE FRONTEND STATIC FILES (Production Fallback) ---
-if (process.env.NODE_ENV === 'production') {
-  // Go up one level from 'server' to find 'dist'
-  const distPath = path.join(__dirname, '../dist');
-  
-  app.use(express.static(distPath));
+// Fallback for Vercel: redirect direct api calls to router if rewrite strips prefix
+app.use('/', apiRouter);
 
-  // Handle SPA Routing: Send all non-API requests to index.html
+// --- SERVE FRONTEND STATIC FILES (Production Fallback for VPS) ---
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+  const distPath = path.join(__dirname, '../dist');
+  app.use(express.static(distPath));
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -67,7 +66,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+// Start server if run directly (VPS/Local), export if imported (Vercel)
+if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
